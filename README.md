@@ -80,6 +80,18 @@ Tip: for ollama "thinking" models (qwen3, deepseek-r1, …) add
 | `--json` / `--csv` | Machine-readable stats / raw issue dump |
 | `--type A,B` | Restrict everything to specific issue types |
 
+## Multiple organizations
+
+Pass several owners to aggregate them into one report — useful when work
+spans a company org, an open-source org, and a founder's personal account:
+
+```bash
+python3 ticket_pulse.py org-one org-two some-user --html dashboard.html
+```
+
+In multi-owner runs, repos are qualified as `owner/repo` in digests and CSVs
+so names can't collide. Your `gh` token needs read access to all of them.
+
 ## Buckets
 
 By default every GitHub issue type is its own bucket. If your org has many

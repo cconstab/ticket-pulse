@@ -5,7 +5,8 @@
 # Usage:
 #   ./monthly-report.sh OWNER [LLM_CMD]
 #
-#   OWNER    GitHub org or user to report on
+#   OWNER    GitHub org or user to report on; quote several to aggregate
+#            them: ./monthly-report.sh "org-one org-two"
 #   LLM_CMD  command for the narrative (default: "claude -p";
 #            e.g. "ollama run llama3.1"). Skipped if not installed.
 #
@@ -43,7 +44,9 @@ BUCKETS_ARGS=()
 [ -f buckets.json ] && BUCKETS_ARGS=(--buckets buckets.json)
 
 echo "=== $(date -u '+%Y-%m-%d %H:%M UTC') — ticket-pulse for $OWNER, $MONTH ==="
-python3 ticket_pulse.py "$OWNER" \
+# shellcheck disable=SC2086 — $OWNER is intentionally unquoted so a quoted
+# multi-owner argument ("org-one org-two") expands to several owners.
+python3 ticket_pulse.py $OWNER \
   --snapshot snapshots.csv \
   --json stats.json \
   --html "dashboard-$MONTH.html" \

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-ticket-pulse: monthly ticket-flow stats for a GitHub org or user account.
+ticket-pulse: monthly ticket-flow stats for GitHub orgs and user accounts.
 
-Fetches every issue in every repo owned by the given account (open and
+Fetches every issue in every repo owned by the given account(s) (open and
 closed), then reports per month: opened, closed, net, and open backlog at
 month end — plus the "active backlog" (open issues actually touched
 recently), a breakdown by issue-type bucket, a self-contained HTML
@@ -12,6 +12,7 @@ Requires: Python 3.9+ and the GitHub CLI (`gh`), authenticated.
 
 Usage:
   python3 ticket_pulse.py OWNER                        # stats to stdout
+  python3 ticket_pulse.py ORG1 ORG2 USER3              # aggregate several
   python3 ticket_pulse.py OWNER --html dashboard.html  # leadership dashboard
   python3 ticket_pulse.py OWNER --snapshot history.csv # accumulate history
   python3 ticket_pulse.py OWNER --digest digest.md \\
@@ -84,7 +85,10 @@ def gql(query, **variables):
     return json.loads(out.stdout)["data"]
 
 
-def fetch_all_issues(owner):
+def fetch_all_issues(owner, qualify=False):
+    """All issues in all repos owned by one org/user. With qualify=True the
+    repo field becomes owner/repo (for multi-owner runs, where bare repo
+    names could collide)."""
     repos, cursor = [], None
     while True:
         data = gql(REPOS_QUERY, owner=owner, cursor=cursor)["repositoryOwner"]
@@ -101,14 +105,14 @@ def fetch_all_issues(owner):
 
     rows = []
     for i, (repo, archived) in enumerate(repos, 1):
-        print(f"  [{i}/{len(repos)}] {repo}...", file=sys.stderr)
+        print(f"  [{i}/{len(repos)}] {owner}/{repo}...", file=sys.stderr)
         cursor = None
         while True:
             page = gql(ISSUES_QUERY, owner=owner, repo=repo,
                        cursor=cursor)["repository"]["issues"]
             for n in page["nodes"]:
                 rows.append({
-                    "repo": repo,
+                    "repo": f"{owner}/{repo}" if qualify else repo,
                     "repo_archived": archived,
                     "number": n["number"],
                     "title": n["title"],
@@ -179,7 +183,8 @@ def load_bucket_fn(path):
 def main():
     ap = argparse.ArgumentParser(
         description="Monthly ticket-flow stats for a GitHub org or user")
-    ap.add_argument("owner", help="GitHub org or user whose repos to analyze")
+    ap.add_argument("owner", nargs="+",
+                    help="one or more GitHub orgs/users whose repos to analyze")
     ap.add_argument("--since", help="start the stdout table at YYYY-MM")
     ap.add_argument("--type", help="comma-separated issue types to restrict to")
     ap.add_argument("--buckets", help="JSON file grouping issue types into "
@@ -225,7 +230,11 @@ def main():
             sys.exit(f"--month {args.month} is in the future")
     bucket_map, bucket = load_bucket_fn(args.buckets)
 
-    rows = fetch_all_issues(args.owner)
+    owners = args.owner
+    owner_label = ", ".join(owners)
+    rows = []
+    for o in owners:
+        rows += fetch_all_issues(o, qualify=len(owners) > 1)
     if args.type:
         wanted = {t.strip().lower() for t in args.type.split(",")}
         rows = [r for r in rows if r["type"].lower() in wanted]
@@ -244,7 +253,7 @@ def main():
                       "net": added[mo] - closed[mo], "backlog": open_count})
     shown = [t for t in table if not args.since or t["month"] >= args.since]
 
-    print(f"# {args.owner} — ticket flow & backlog")
+    print(f"# {owner_label} — ticket flow & backlog")
     print(f"_Generated {date.today()} · {len(rows)} issues"
           + (f" · types: {args.type}" if args.type else "") + "_\n")
 
@@ -293,7 +302,7 @@ def main():
     if args.month:
         idx = {t["month"]: i for i, t in enumerate(table)}
         if args.month not in idx:
-            sys.exit(f"No data for {args.month} — {args.owner}'s issues span "
+            sys.exit(f"No data for {args.month} — the issues span "
                      f"{table[0]['month']} to {table[-1]['month']}")
         i = idx[args.month]
         rep, prev = table[i], (table[i - 1] if i > 0 else None)
@@ -343,7 +352,7 @@ def main():
             }
         with open(args.json, "w") as f:
             json.dump({"generated": str(date.today()),
-                       "owner": args.owner,
+                       "owners": owners,
                        "active_days": args.active_days,
                        "active_backlog": len(active),
                        "active_by_bucket": dict(active_buckets),
@@ -383,7 +392,7 @@ def main():
                            "them with a --buckets config if the list gets "
                            "noisy.")
         data = {
-            "org": args.owner,
+            "org": owner_label,
             "generated": date.today().strftime("%-d %b %Y"),
             "activeDays": args.active_days,
             "reportMonth": report_month,
@@ -423,7 +432,7 @@ def main():
                    "Assigning a type at triage fixes this going forward."
                    if untyped_open else "."),
                 f"Source: all issues (open and closed) across every "
-                f"repository owned by {args.owner}, via the GitHub API. Pull "
+                f"repository owned by {owner_label}, via the GitHub API. Pull "
                 f"requests are not counted. "
                 f"{full_name(current['month'])} {current['month'][:4]} is in "
                 f"progress and excluded from the charts"
@@ -448,7 +457,7 @@ def main():
 
         opened_list, closed_list = month_rows("created"), month_rows("closed")
         lines = [
-            f"# Ticket digest — {args.owner} — {report_month}",
+            f"# Ticket digest — {owner_label} — {report_month}",
             "",
             f"Generated {date.today()}",
             f"Active backlog: {len(active)} open tickets touched in the last "
