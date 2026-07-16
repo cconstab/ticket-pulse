@@ -1,0 +1,6 @@
+{
+  "Features": ["Feature", "Enhancement", "Proposal", "UI / UX"],
+  "Bugs": ["Bug", "Regression", "Incident"],
+  "Engineering health": ["Chore", "Refactor", "Tech Debt", "Performance", "Testing", "CI / CD", "DevOps", "Release"],
+  "Docs": ["Docs", "Documentation"]
+}
