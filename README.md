@@ -3,7 +3,8 @@
 Monthly ticket-flow reports from GitHub issues, for people who don't live in
 GitHub. One script, no dependencies beyond Python and the GitHub CLI.
 
-For any GitHub org (or user account) it produces:
+For any GitHub org or user account — or several combined into one
+portfolio view — it produces:
 
 - **Tickets opened / closed / net per month**, and the backlog trend
 - **Active backlog** — the open issues actually being worked, separated from
@@ -19,6 +20,13 @@ For any GitHub org (or user account) it produces:
 gh auth login          # once — needs repo access to the account you'll report on
 python3 ticket_pulse.py your-org --html dashboard.html
 open dashboard.html
+```
+
+Several orgs/users aggregate into one report — see
+[Multiple organizations](#multiple-organizations):
+
+```bash
+python3 ticket_pulse.py org-one org-two some-user --html dashboard.html
 ```
 
 That's it. The fetch takes a few minutes for large orgs (it pages through
